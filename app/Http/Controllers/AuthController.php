@@ -2,15 +2,133 @@
 
 namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\Api\ApiController;
 use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\StaffDetails; 
 use App\Models\PaUsers; 
 use App\Models\FareInfo; 
+use Validator;
 
 class AuthController extends Controller
 {
     public function login(Request $request)
+    {
+        try {
+            $input  = $request->all();
+            //validations
+            $validator = Validator::make($input, [
+                'user_login' => 'required',
+                'password' => 'required',
+            ]);
+            if ($validator->fails()) {
+                $err = (new ApiController)->validator_response($request, $validator);
+                return response()->json([
+                    'success' => false,
+                    'message' => $err,
+                ], 200);
+            } else {
+
+                $user_login = $request->input('user_login');
+                $val_user = StaffDetails::where('staff_mobile_number', $user_login)->orWhere('staff_email',$user_login)->first();    
+                if(!empty($val_user)) {
+            
+                    if($val_user->password == $request->password){
+                        if ($val_user->active_status != 'unactive') 
+                        {
+                                $vendor_id = $val_user->vendor_id;
+                                $active_plans_row = GetVendorActivatedPlan($vendor_id);
+                                $block_vechiles = GetVendorsBlockedVechiles($vendor_id);
+                
+                                $numrows_fare = 0;
+                                $select_vendor = PaUsers::where("id",$vendor_id)->where("user_role",'vandor')->first();
+                                
+                                if (!empty($select_vendor)) {
+                                   
+                                    if( $select_vendor->parking_logo!=''){
+                                        // $row_vendor['parking_logo'] = VENDOR_URL.$row_vendor['parking_logo'];
+                                        $select_vendor->parking_logo =  $select_vendor->parking_logo;
+                                    } else {
+                                        $select_vendor->parking_logo = '';
+                                    }
+                                    $val_user->vendor_details =  $select_vendor;
+                                }
+        
+                                if(isset($active_plans_row['fare_info']) && $active_plans_row['fare_info'] > 0){
+                                    $fare_final_array = array();
+                                    
+                                    $select_fare_query = FareInfo::where('user_id', $vendor_id)->orderBy('initial_hr', 'ASC');
+                                   
+                                    $numrows_fare = $select_fare_query->count();
+                                   
+                                    $fare_rows = $select_fare_query->get()->toArray();
+                                    foreach ($fare_rows as $fare_row) {
+                                     
+                                        $veh_type = $fare_row['veh_type'];
+                                        $initial_hr = $fare_row['initial_hr'];
+                                        $ending_hr = $fare_row['ending_hr'];
+                                        $amount = $fare_row['amount'];
+                                        $hr_status = $fare_row['hr_status'];
+                                        $fare_array['initial_hr'] = $initial_hr;
+                                        $fare_array['ending_hr'] = $ending_hr;
+                                        $fare_array['amount'] = $amount;
+                                        $fare_array['hr_status'] = $hr_status;
+                                        $fare_final_array[$veh_type][] = $fare_array;
+                                    }
+                                    $val_user->fare_info_price= $fare_final_array;
+                                }
+                                
+                                if(isset($active_plans_row['fare_info'])){
+                                    $val_user->vendor_active_plan= $active_plans_row;
+                                }
+                
+                                if(sizeof($block_vechiles) > 0){
+                                    $val_user->block_vehicles= $block_vechiles;
+                                }
+                
+                                if($numrows_fare > 0){
+                                    StaffDetails::where('staff_id', $val_user->staff_id)->update(['login_status' => 1,'last_login' => time()]);
+                                    $array['error_code'] = 200;
+                                    
+                                    $payload = [
+                                        'email' => $val_user->staff_email,
+                                        'id' => $val_user->staff_id,
+                                    ];
+                                   
+                                    $val_user->token= JWTAuth::fromUser($val_user, $payload);
+                                    $array['result'] = $val_user;
+                                    
+                                    $array['message'] = 'User Login Successfully';
+                                } else {
+                                    $array['error_code'] = 400;
+                                    $array['message'] = 'Please add fare in Vendor panel or contact with Vendor / Admin';
+                                }
+                        }else{
+                            $array['error_code'] = 400;
+                            $array['message'] = 'Your Account in Unactive';
+                        }		
+                    } else {
+                        $array['error_code'] = 400;
+                        $array['message'] = 'Incorrect Password.';
+                    }
+                } else {
+                    $array['error_code'] = 400;
+                    $array['message'] = 'Incorrect Username Password';
+                }
+        
+                $finalarray['response'] = $array;
+                return response()->json($finalarray);
+
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 200);
+        }
+    }
+
+    public function login_old(Request $request)
     {
         $user_login = $request->input('user_login');
         
@@ -22,7 +140,6 @@ class AuthController extends Controller
             if($val_user['password']==$request->password){
                 if ($val_user['active_status'] != 'unactive') 
                 {
-                    
                         $vendor_id = $val_user['vendor_id'];
                         $active_plans_row = GetVendorActivatedPlan($vendor_id);
                         $block_vechiles = GetVendorsBlockedVechiles($vendor_id);

@@ -31,13 +31,13 @@ function GetVendorActivatedPlan($vendor_id) {
     // $active_plans_row_row = sizeof($activate_subscriptions_plans);
 
     if ($activate_subscriptions_plans) {
-        $active_plans_row = $activate_subscriptions_plans->toArray();
+        $active_plans_row = $activate_subscriptions_plans;
         
-        $plan_end = date('d-m-Y', $active_plans_row['subscription_end_date']);
+        $plan_end = date('d-m-Y', $active_plans_row->subscription_end_date);
 
         $t = time();
         $today = date('d-m-Y', $t);
-        if ($t < $active_plans_row['subscription_end_date']) {
+        if ($t < $active_plans_row->subscription_end_date) {
             return $active_plans_row;
         } else {
             return false;
@@ -50,7 +50,8 @@ function GetVendorActivatedPlan($vendor_id) {
 function GetVendorsBlockedVechiles($vendor_id) {
     $Array_block_vechiles = array();
     $active_plans_row = GetVendorActivatedPlan($vendor_id);
-    if (isset($active_plans_row['block_vehicle']) && $active_plans_row['block_vehicle']== 1) {
+   
+    if (isset($active_plans_row->block_vehicle) && $active_plans_row->block_vehicle== 1) {
         $Array_block_vechiles = BlockVehicles::where("vendor_id", $vendor_id)->pluck('vehicle_number')->toArray();
     }
     return $Array_block_vechiles;

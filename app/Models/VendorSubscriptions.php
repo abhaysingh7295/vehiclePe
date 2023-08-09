@@ -10,7 +10,7 @@ class VendorSubscriptions extends Model
 {
     use HasFactory;
     
-    // protected $table = 'pa_users';
+    protected $table = 'vendor_subscriptions';
     /**
      * The attributes that are mass assignable.
      *

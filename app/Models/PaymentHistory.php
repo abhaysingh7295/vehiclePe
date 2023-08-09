@@ -9,7 +9,7 @@ class PaymentHistory extends Model
 {
     use HasFactory;
     
-    // protected $table = 'pa_users';
+    protected $table = 'payment_history';
     /**
      * The attributes that are mass assignable.
      *
